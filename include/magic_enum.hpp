@@ -727,19 +727,19 @@ struct constexpr_hash_t<Value, std::enable_if_t<std::is_same_v<Value, string_vie
     0xbdbdf21cL, 0xcabac28aL, 0x53b39330L, 0x24b4a3a6L, 0xbad03605L, 0xcdd70693L, 0x54de5729L, 0x23d967bfL,
     0xb3667a2eL, 0xc4614ab8L, 0x5d681b02L, 0x2a6f2b94L, 0xb40bbe37L, 0xc30c8ea1L, 0x5a05df1bL, 0x2d02ef8dL
   };
-  constexpr std::uint32_t operator()(string_view val) const noexcept {
+  constexpr std::uint32_t operator()(string_view value) const noexcept {
     auto crc = static_cast<std::uint32_t>(0xffffffffL);
-    for (const auto c : val) {
+    for (const auto c : value) {
       crc = (crc >> 8) ^ crc_table[(crc ^ static_cast<std::uint32_t>(c)) & 0xff];
     }
     return crc ^ 0xffffffffL;
   }
 
   struct secondary_hash {
-    constexpr std::uint32_t operator()(string_view val) const noexcept {
+    constexpr std::uint32_t operator()(string_view value) const noexcept {
       auto acc = static_cast<std::uint64_t>(2166136261ULL);
-      for (const auto v : val) {
-        acc = ((acc ^ static_cast<std::uint64_t>(v)) * static_cast<std::uint64_t>(16777619ULL)) & std::numeric_limits<std::uint32_t>::max();
+      for (const auto c : value) {
+        acc = ((acc ^ static_cast<std::uint64_t>(c)) * static_cast<std::uint64_t>(16777619ULL)) & std::numeric_limits<std::uint32_t>::max();
       }
       return static_cast<std::uint32_t>(acc);
     }
@@ -769,7 +769,7 @@ constexpr auto calculate_cases(std::size_t Page) noexcept {
   }
 
   auto it = result.begin();
-  for (auto last_value = (std::numeric_limits<switch_t>::min)(); fill != result.end(); *fill++ = last_value) {
+  for (auto last_value = (std::numeric_limits<switch_t>::min)(); fill != result.end(); *fill++ = last_value++) {
     while (last_value == *it) {
       ++last_value, ++it;
     }
@@ -792,10 +792,10 @@ enum class case_call_t {
 };
 
 template <typename T = void>
-constexpr auto default_result_type_lambda = []() noexcept(std::is_nothrow_default_constructible_v<T>) { return T{}; };
+inline constexpr auto default_result_type_lambda = []() noexcept(std::is_nothrow_default_constructible_v<T>) { return T{}; };
 
 template <>
-constexpr auto default_result_type_lambda<void> = []() noexcept {};
+inline constexpr auto default_result_type_lambda<void> = []() noexcept {};
 
 template <auto* Arr, typename Hash>
 constexpr bool no_duplicate() noexcept {
@@ -1336,7 +1336,7 @@ std::basic_ostream<Char, Traits>& operator<<(std::basic_ostream<Char, Traits>& o
   using U = underlying_type_t<D>;
 
   if constexpr (detail::supported<D>::value) {
-    if (const auto name = magic_enum::enum_flags_name<D>(value); !name.empty()) {
+    if (const auto name = enum_flags_name<D>(value); !name.empty()) {
       for (const auto c : name) {
         os.put(c);
       }
@@ -1352,6 +1352,31 @@ std::basic_ostream<Char, Traits>& operator<<(std::basic_ostream<Char, Traits>& o
 }
 
 } // namespace magic_enum::ostream_operators
+
+namespace istream_operators {
+
+template <typename Char, typename Traits, typename E, detail::enable_if_t<E, int> = 0>
+std::basic_istream<Char, Traits>& operator>>(std::basic_istream<Char, Traits>& is, E& value) {
+  using D = std::decay_t<E>;
+
+  std::basic_string<Char, Traits> s;
+  is >> s;
+  if (const auto v = enum_cast<D>(s)) {
+    value = *v;
+  } else {
+    is.setstate(std::basic_ios<Char>::failbit);
+  }
+  return is;
+}
+
+} // namespace magic_enum::istream_operators
+
+namespace iostream_operators {
+
+using namespace ostream_operators;
+using namespace istream_operators;
+
+} // namespace magic_enum::iostream_operators
 
 namespace bitwise_operators {
 

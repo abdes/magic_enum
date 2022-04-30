@@ -84,7 +84,7 @@ struct magic_enum::customize::enum_range<number> {
 
 enum class MaxUsedAsInvalid : std::uint8_t {
   ONE,
-  TWO,
+  TWO = 63,
   INVALID = std::numeric_limits<std::uint8_t>::max()
 };
 template <>
@@ -582,6 +582,8 @@ TEST_CASE("enum_name") {
     REQUIRE(nt_name == "three");
     REQUIRE(enum_name(number::four).empty());
     REQUIRE(enum_name(static_cast<number>(0)).empty());
+
+    REQUIRE(enum_name(MaxUsedAsInvalid::ONE) == "ONE");
   }
 
   SECTION("static storage") {
@@ -670,10 +672,11 @@ TEST_CASE("enum_entries") {
 }
 
 TEST_CASE("ostream_operators") {
-  auto test_ostream = [](auto e, std::string_view name) {
+  auto test_ostream = [](auto e, std::string name) {
     using namespace magic_enum::ostream_operators;
     std::stringstream ss;
     ss << e;
+    REQUIRE(ss);
     REQUIRE(ss.str() == name);
   };
 
@@ -712,6 +715,36 @@ TEST_CASE("ostream_operators") {
   test_ostream(number::four, "400");
   test_ostream(static_cast<number>(0), "0");
   test_ostream(std::make_optional(static_cast<number>(0)), "0");
+}
+
+TEST_CASE("istream_operators") {
+  auto test_istream = [](const auto e, std::string name) {
+    using namespace magic_enum::istream_operators;
+    std::istringstream ss(name);
+    std::decay_t<decltype(e)> v;
+    ss >> v;
+    REQUIRE(ss);
+    REQUIRE(v == e);
+  };
+
+  test_istream(Color::GREEN, "GREEN");
+  test_istream(Color::BLUE, "BLUE");
+
+  test_istream(Numbers::two, "two");
+  test_istream(Numbers::three, "three");
+
+  test_istream(Directions::Down, "Down");
+  test_istream(Directions::Right, "Right");
+  test_istream(Directions::Left, "Left");
+
+#if defined(MAGIC_ENUM_ENABLE_NONASCII)
+  test_istream(Language::한국어, "한국어");
+  test_istream(Language::English, "English");
+  test_istream(Language::😃, "😃");
+#endif
+
+  test_istream(number::two, "two");
+  test_istream(number::three, "three");
 }
 
 TEST_CASE("bitwise_operators") {
@@ -958,7 +991,7 @@ TEST_CASE("extrema") {
     REQUIRE(magic_enum::detail::max_v<Binary> == true);
 
     REQUIRE(magic_enum::detail::reflected_max_v<MaxUsedAsInvalid, false> == 64);
-    REQUIRE(magic_enum::detail::max_v<MaxUsedAsInvalid> == 1);
+    REQUIRE(magic_enum::detail::max_v<MaxUsedAsInvalid> == 63);
   }
 }
 
